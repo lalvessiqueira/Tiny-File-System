@@ -29,6 +29,10 @@ int openDisk(char *filename, int nBytes) {
             return EXIT_FAILURE;
         }
     } else {
+        fd = open(filename, O_CREAT | O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
+        if (fd == -1) {
+            return EXIT_FAILURE;
+        }
 
     }
 
