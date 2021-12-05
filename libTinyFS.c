@@ -290,7 +290,53 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
 }
 
 int tfs_deleteFile(fileDescriptor FD){
+    fileDescriptor fd;
+    int b_num, b, i, exists = 0, saveBlock;
+    dynamicResourceTable *curr = DRT_head;
+    char *filename, *data = malloc(BLOCKSIZE);
 
+    if (!mounted_tinyfs) {
+        return EXIT_FAILURE;
+    } 
+    fd = openDisk(mounted_tinyfs, 0);
+
+    while (curr != NULL) {
+        if (curr->id == FD) {
+            break;
+        }
+        curr = curr->next;
+    }
+    if (curr == NULL) {
+        return EXIT_FAILURE;
+    }
+    strcpy(filename, curr->filename);
+
+    for (i = 0; i < b; i++) {
+        if (!exists) {
+            if (readBlock(fd, i, data) < 0){
+                return EXIT_FAILURE;
+            }
+            if (data[0] == INODE) {
+                if(strcmp(filename, data+4) == 0) {
+                    if (data[3] == 0){
+                        return EXIT_FAILURE;
+                    }
+                    exists = 1;
+                    saveBlock = data[2];
+                    break;
+                }
+            }
+        }
+    }
+    if (!exists){
+        return EXIT_FAILURE;
+    }
+    //mark its blocks as free on disk
+    data[0] = FREE;
+
+    writeBlock(fd, i, data);
+    // for (i = saveBlock; i < save)
+    tfs_closeFile(FD);
 }
 
 int tfs_readByte(fileDescriptor FD, char *buffer) {
