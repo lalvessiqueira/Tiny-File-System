@@ -167,12 +167,44 @@ fileDescriptor tfs_openFile(char *name) {
         }
         return curr->id;
     }
-
-
 }
 
 int tfs_closeFile(fileDescriptor FD) {
+    //just needs to itereate and remove from linked list
+    dynamicResourceTable *curr = DRT_head, *curr2;
 
+    if (DRT_head == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    //check if its the head 
+    if (curr->id == FD) {
+        if (curr->next == NULL){
+            DRT_head = NULL;
+        } else {
+            DRT_head = curr->next;
+        }
+    } else {
+        curr2 = curr;
+        curr = curr->next;
+        while (curr != NULL) {
+            if (curr->id == FD) {
+                break;
+            }
+            curr = curr->next;
+            curr2 = curr2->next;
+        }
+        if (curr == NULL) {
+            return EXIT_FAILURE;
+        }
+        if (curr->next == NULL) {
+            curr2->next = NULL;
+        } else {
+            curr2->next = curr->next;
+        }
+    }
+    free(curr);
+    return SUCCESS;
 }
 
 int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
