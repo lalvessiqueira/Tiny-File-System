@@ -4,8 +4,10 @@
 #include "libDisk.h"
 #include "blockTypes.h"
 
- #define EXIT_FAILURE -1
+#define EXIT_FAILURE -1
 #define SUCCESS 1
+
+dynamicResourceTable *head = NULL;
 static char *mounted_tinyfs = NULL;
 
 int tfs_mkfs(char *filename, int nBytes) {
@@ -96,6 +98,40 @@ int tfs_unmount(void) {
 }
 
 fileDescriptor tfs_openFile(char *name) {
+    dynamicResourceTable *curr = head;
+    fileDescriptor fd;
+    int i, exists = 0;
+    char *data = malloc(BLOCKSIZE);
+
+    //check if mounted disk not null
+    if (mounted_tinyfs) {
+        //first check if the file exists in dynamic resource table
+        while (curr != NULL) {
+            if (strcmp(name, curr->filename) == 0){
+                return curr->id;
+            }
+            curr = curr->next;
+        }
+        fd = openDisk(mounted_tinyfs, 0);
+        // return fd;
+    } else {
+        return EXIT_FAILURE;
+    }
+    int b = DEFAULT_DISK_SIZE/BLOCKSIZE;
+    for (i = 0; i < b; i++) {
+        if (!exists) {
+            if (readBlock(fd, i, data) < 0){
+                return EXIT_FAILURE;
+            }
+            if (data[0] == INODE) {
+                if(strcmp(name, data+4)) {
+                    exists = 1;
+                    break;
+                }
+            }
+        }
+    }
+    
 
 }
 
