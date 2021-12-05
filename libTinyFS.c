@@ -7,7 +7,7 @@
 #define EXIT_FAILURE -1
 #define SUCCESS 1
 
-dynamicResourceTable *head = NULL;
+dynamicResourceTable *DRT_head = NULL;
 static char *mounted_tinyfs = NULL;
 
 int tfs_mkfs(char *filename, int nBytes) {
@@ -98,7 +98,7 @@ int tfs_unmount(void) {
 }
 
 fileDescriptor tfs_openFile(char *name) {
-    dynamicResourceTable *curr = head;
+    dynamicResourceTable *curr = DRT_head, *newNode;
     fileDescriptor fd;
     int i, exists = 0;
     char *data = malloc(BLOCKSIZE);
@@ -131,7 +131,43 @@ fileDescriptor tfs_openFile(char *name) {
             }
         }
     }
-    
+
+    //if the file still doesn't exist
+    if (!exists) {
+        for (i = 0; i < b; i++) {
+            if (readBlock(fd, i, data) < 0){
+                return EXIT_FAILURE;
+            }
+            if(data[0] == FREE){
+                break;
+            }
+        }
+        data[0] = INODE;
+        data[3] = SUPERBLOCK;
+        strncpy(data+4, name, strlen(name));
+        writeBlock(fd, i, data);
+
+        //now add file to dynamic table
+        if (DRT_head == NULL) {
+            curr = calloc(1, sizeof(dynamicResourceTable));
+            strcpy(curr->filename, name);
+            curr->id = fd;
+            curr->next = NULL;
+            DRT_head = curr;
+        } else {
+            newNode = calloc(1, sizeof(dynamicResourceTable));
+            strcpy(newNode->filename, name);
+            curr = DRT_head;
+
+            while (curr->next != NULL) {
+                curr = curr->next;
+            }
+            newNode->id = curr->id + 1;
+            curr->next = newNode;
+        }
+        return curr->id;
+    }
+
 
 }
 
