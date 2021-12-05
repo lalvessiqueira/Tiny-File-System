@@ -103,7 +103,7 @@ fileDescriptor tfs_openFile(char *name) {
     int i, exists = 0;
     char *data = malloc(BLOCKSIZE);
 
-    //check if mounted disk not null
+    //check if disk is mounted
     if (mounted_tinyfs) {
         //first check if the file exists in dynamic resource table
         while (curr != NULL) {
@@ -124,7 +124,7 @@ fileDescriptor tfs_openFile(char *name) {
                 return EXIT_FAILURE;
             }
             if (data[0] == INODE) {
-                if(strcmp(name, data+4)) {
+                if(strcmp(name, data+4) == 0) {
                     exists = 1;
                     break;
                 }
@@ -156,6 +156,7 @@ fileDescriptor tfs_openFile(char *name) {
             DRT_head = curr;
         } else {
             newNode = calloc(1, sizeof(dynamicResourceTable));
+            //usze strdup?
             strcpy(newNode->filename, name);
             curr = DRT_head;
 
@@ -208,7 +209,84 @@ int tfs_closeFile(fileDescriptor FD) {
 }
 
 int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
+    //first check if disk is mounted
+    fileDescriptor fd;
+    int b_num, b, exists = 0, i, inode, start, end;
+    dynamicResourceTable *curr = DRT_head;
+    char *filename, *data = malloc(BLOCKSIZE);
+    
+    if (!mounted_tinyfs) {
+        return EXIT_FAILURE;
+    } 
+    fd = openDisk(mounted_tinyfs, 0);
+    b_num = size/BLOCKSIZE;
 
+    while (curr != NULL) {
+        if (curr->id == FD) {
+            break;
+        }
+        curr = curr->next;
+    }
+    if (curr == NULL) {
+        return EXIT_FAILURE;
+    }
+    strcpy(filename, curr->filename);
+
+    b = DEFAULT_DISK_SIZE/BLOCKSIZE;
+    for (i = 0; i < b; i++) {
+        if (!exists) {
+            if (readBlock(fd, i, data) < 0){
+                return EXIT_FAILURE;
+            }
+            if (data[0] == INODE) {
+                if(strcmp(filename, data+4) == 0) {
+                    exists = 1;
+                    inode = i;
+                    break;
+                }
+            }
+        }
+    }
+    if (!exists){
+        return EXIT_FAILURE;
+    }
+    for (start = 0; start < b; start++) {
+        if (readBlock(fd, i, data) < 0){
+            return EXIT_FAILURE;
+        }
+        if(data[0] == FREE) {
+            for (end = start; end + b_num-1; end++) {
+                if (readBlock(fd, end, data) < 0) {
+                    return EXIT_FAILURE;
+                }
+                if (data[0] != FREE) {
+                    exists = 0;
+                }
+            }
+            if (exists) {
+                break;
+            }
+        }
+    }
+    if (!exists){
+        return EXIT_FAILURE;
+    }
+    exists = 0;
+    for (i = start; i <= end; i++) {
+        if (i != end) {
+            data[2] = start + 1;
+        } else {
+            data[2] = 0;
+        }
+        strncpy(data+4, buffer, BLOCKSIZE-4);
+        writeBlock(fd, i, data);
+    }
+
+    readBlock(fd, inode, data);
+    data[2] = start;
+    writeBlock(fd, inode, data);
+
+    return SUCCESS;
 }
 
 int tfs_deleteFile(fileDescriptor FD){
