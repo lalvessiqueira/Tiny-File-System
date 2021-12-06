@@ -8,23 +8,23 @@ typedef struct dynamicResourceTable {
     fileDescriptor id;
     char *filename;
     int filePointer;	
-    dynamicResourceTable *next;
+    struct dynamicResourceTable *next;
 } dynamicResourceTable;
 
 typedef struct freeblocks {
     int block;
-    freeblocks *next;
+    struct freeblocks *next;
 } freeblocks;
 
 typedef struct superblock {
     int magicNumber;
     int blockNumber;
-    freeblocks *firstFreeBlock;
+    struct freeblocks *firstFreeBlock;
 } superblock;
 
 typedef struct inode {
     char *filename; //must support names up to 8 alphanumeric chars
     int filesize;
-    freeblocks *inodeBlocks;
+    struct freeblocks *inodeBlocks;
 } inode;
 

@@ -1,2 +1,2 @@
 all:
-	gcc -Wall libDisk.c
+	gcc -Wall *.c

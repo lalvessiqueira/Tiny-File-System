@@ -1,12 +1,10 @@
-#ifndef LIBTINYFS_H
-#define LIBTINYFS_H
-
 /* The default size of the disk and file system block */
 #define BLOCKSIZE 256
 /* Your program should use a 10240 Byte disk size giving you 40 blocks total. This is a default size. You must be able to support different possible values */
 #define DEFAULT_DISK_SIZE 10240 
 /* use this name for a default disk file name */
-#define DEFAULT_DISK_NAME “tinyFSDisk” 	
+#define DEFAULT_DISK_NAME "tinyFSDisk"	
+
 typedef int fileDescriptor;
 
 /* Makes a blank TinyFS file system of size nBytes on the
@@ -61,5 +59,3 @@ int tfs_readByte(fileDescriptor FD, char *buffer);
 /* change the file pointer location to offset (absolute). 
 Returns success/error codes.*/
 int tfs_seek(fileDescriptor FD, int offset);
-
-#endif

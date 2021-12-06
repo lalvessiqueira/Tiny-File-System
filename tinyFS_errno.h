@@ -1,0 +1,9 @@
+#define SUCCESS 1
+#define ERROPENDISK -2
+#define ERRREADBLCK -3
+#define ERRFSCORRUPT -4
+#define NOMOUNTEDFILE -5
+#define NOFILETOCLOSE -6
+#define ERRWRITEBLCK -7
+#define ERRNOTEMPTY -8
+#define EXITFAILURE -9
