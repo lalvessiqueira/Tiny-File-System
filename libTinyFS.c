@@ -400,5 +400,42 @@ int tfs_readByte(fileDescriptor FD, char *buffer) {
 }
 
 int tfs_seek(fileDescriptor FD, int offset) {
+    fileDescriptor fd;
+    int b_num, b, i, exists = 0, current_block, saveBlock, file_pointer;
+    dynamicResourceTable *curr = DRT_head;
+    char *filename, *data = malloc(BLOCKSIZE);
 
+    if (!mounted_tinyfs) {
+        return EXIT_FAILURE;
+    } 
+    fd = openDisk(mounted_tinyfs, 0);
+
+    while (curr != NULL) {
+        if (curr->id == FD) {
+            break;
+        }
+        curr = curr->next;
+    }
+    if (curr == NULL) {
+        return EXIT_FAILURE;
+    }
+    curr->filePointer = offset;
+    strcpy(filename, curr->filename);
+
+    b = DEFAULT_DISK_SIZE/BLOCKSIZE;
+    for (i = 0; i < b; i++) {
+        if (!exists) {
+            if (readBlock(fd, i, data) < 0){
+                return EXIT_FAILURE;
+            }
+            if (data[0] == INODE) {
+                if(strcmp(filename, data+4) == 0) {
+                    exists = 1;
+                    writeBlock(fd, i, data);
+                    break;
+                }
+            }
+        }
+    }
+    return SUCCESS;
 }
