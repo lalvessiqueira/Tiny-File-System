@@ -272,6 +272,10 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
         return EXIT_FAILURE;
     }
     exists = 0;
+    data[0] = FILEEXTENT;
+    data[1] = MAGICNUMBER;
+    data[3] = inode;
+
     for (i = start; i <= end; i++) {
         if (i != end) {
             data[2] = start + 1;
@@ -284,14 +288,15 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
 
     readBlock(fd, inode, data);
     data[2] = start;
-    writeBlock(fd, inode, data);
 
+    writeBlock(fd, inode, data);
+    curr->filePointer = 0;
     return SUCCESS;
 }
 
 int tfs_deleteFile(fileDescriptor FD){
     fileDescriptor fd;
-    int b_num, b, i, exists = 0, saveBlock;
+    int b, i, exists = 0, saveBlock;
     dynamicResourceTable *curr = DRT_head;
     char *filename, *data = malloc(BLOCKSIZE);
 
@@ -311,6 +316,7 @@ int tfs_deleteFile(fileDescriptor FD){
     }
     strcpy(filename, curr->filename);
 
+    b = DEFAULT_DISK_SIZE/BLOCKSIZE;
     for (i = 0; i < b; i++) {
         if (!exists) {
             if (readBlock(fd, i, data) < 0){
@@ -340,7 +346,57 @@ int tfs_deleteFile(fileDescriptor FD){
 }
 
 int tfs_readByte(fileDescriptor FD, char *buffer) {
+    fileDescriptor fd;
+    int b_num, b, i, exists = 0, current_block, saveBlock, file_pointer;
+    dynamicResourceTable *curr = DRT_head;
+    char *filename, *data = malloc(BLOCKSIZE);
 
+    if (!mounted_tinyfs) {
+        return EXIT_FAILURE;
+    } 
+    fd = openDisk(mounted_tinyfs, 0);
+
+    while (curr != NULL) {
+        if (curr->id == FD) {
+            break;
+        }
+        curr = curr->next;
+    }
+    if (curr == NULL) {
+        return EXIT_FAILURE;
+    }
+    strcpy(filename, curr->filename);
+
+    b = DEFAULT_DISK_SIZE/BLOCKSIZE;
+    for (i = 0; i < b; i++) {
+        if (!exists) {
+            if (readBlock(fd, i, data) < 0){
+                return EXIT_FAILURE;
+            }
+            if (data[0] == INODE) {
+                if(strcmp(filename, data+4) == 0) {
+                    exists = 1;
+                    writeBlock(fd, i, data);
+                    saveBlock = data[2];
+                    break;
+                }
+            }
+        }
+    }
+    if (!exists){
+        return EXIT_FAILURE;
+    }
+    current_block = curr->filePointer + 1/ BLOCKSIZE;
+    file_pointer = curr->filePointer - (BLOCKSIZE * current_block);
+
+    readBlock(fd, current_block + saveBlock, data);
+    
+    if (data[0] != FILEEXTENT){
+        return EXIT_FAILURE;
+    }
+    *buffer = data[file_pointer+4];
+    curr->filePointer++;
+    return SUCCESS;
 }
 
 int tfs_seek(fileDescriptor FD, int offset) {

@@ -4,6 +4,13 @@
 #define FREE 4
 #define MAGICNUMBER 0x44
 
+typedef struct dynamicResourceTable {
+    fileDescriptor id;
+    char *filename;
+    int filePointer;	
+    dynamicResourceTable *next;
+} dynamicResourceTable;
+
 typedef struct freeblocks {
     int block;
     freeblocks *next;
