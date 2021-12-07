@@ -15,38 +15,41 @@
  Unix file.*/
 
 int openDisk(char *filename, int nBytes) {
-    int fd = -1;
+    fileDescriptor o_disk, w_disk;
     int i;
+    char data[nBytes];
 
     if (!filename || nBytes < 0) {
         return EXITFAILURE;
     }
 
     if (nBytes == 0) {
-        fd = open(filename, O_RDWR);
-        if (fd == -1){
+        o_disk = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        if (o_disk < 0){
             return EXITFAILURE;
         }
     } else {
-        fd = open(filename, O_CREAT | O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
-        if (fd == -1) {
+        o_disk = open(filename, O_RDWR, S_IRUSR | S_IWUSR);
+        if (o_disk < 0) {
             return EXITFAILURE;
         }
 
         for (i = 0; i < nBytes; i++) {
-            int ret = write(fd, "\0", 1);
-            if(ret == -1) {
-                return EXITFAILURE;
-            }
+            data[i] = '\0';
+        }
+
+        w_disk = write(o_disk, data, nBytes);
+        if(w_disk == -1) {
+           return EXITFAILURE;
         }
     }
-    return fd;
+    return o_disk;
 }
 
 int closeDisk(int disk) {
-    // do I need to check for disk?
-    int ret = close(disk);
-    if (ret == -1) {
+    fileDescriptor c_disk;
+    c_disk = close(disk);
+    if (c_disk < 0) {
         return EXITFAILURE;
     }
     return EXIT_SUCCESS;
@@ -54,33 +57,47 @@ int closeDisk(int disk) {
 
 int readBlock(int disk, int bNum, void *block) {
 // check for parameters
+    fileDescriptor r_disk, ls;
     int b_size = bNum * BLOCKSIZE;
+
     // lseek write it on another local buffer
-    int ret;
-    // check if it worked correctly
-    if ((ret = lseek(disk, 0, SEEK_SET)) != b_size) {
-        return EXITFAILURE;
+    ls = lseek(disk, 0, SEEK_SET);
+    if (ls == -1) {
+        printf("Oops, something wrong happened!\n");
     }
-    ret = pread(disk, block, BLOCKSIZE, b_size);
-    // check
-    if (ret == -1) {
+    // check if it worked correctly
+    r_disk = pread(disk, block, BLOCKSIZE, b_size);
+    if (r_disk == -1) {
         return EXITFAILURE;
     }
     return EXIT_SUCCESS;
 }
 
 int writeBlock(int disk, int bNum, void *block) {
+	int bytesWritten;
+
+	lseek(disk, 0, SEEK_SET);
+
+	if((bytesWritten = pwrite(disk, block, BLOCKSIZE, bNum * BLOCKSIZE)) == -1) {
+		fprintf(stderr, "Error:%s %d\n", " writeBlock", disk);
+		return ERRWRITEBLCK;
+	} else
+		return 0;
+    //-----------
+
     // lseek write it on another local buffer
-    int b_size = bNum * BLOCKSIZE;
-    int ret = lseek(disk, 0, SEEK_SET);
-    // check if it worked correctly
-    if (ret != b_size) {
-        return EXITFAILURE;
-    }
-    // check
-    if ((ret = write(disk, block, BLOCKSIZE)) == -1) {
-        printf("HERE!");
-        return EXITFAILURE;
-    }
-    return EXIT_SUCCESS;
+    // int b_size = bNum * BLOCKSIZE;
+    // fileDescriptor ret, w_disk;
+    // ret = lseek(disk, 0, SEEK_SET);
+
+    // // check if it worked correctly
+    // if (ret != b_size) {
+    //     return EXITFAILURE;
+    // }
+    // // check
+    // w_disk = write(disk, block, b_size);
+    // if (w_disk < 0) {
+    //     return EXITFAILURE;
+    // }
+    // return EXIT_SUCCESS;
 }

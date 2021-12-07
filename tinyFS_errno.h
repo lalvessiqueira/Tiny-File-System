@@ -7,3 +7,4 @@
 #define ERRWRITEBLCK -7
 #define ERRNOTEMPTY -8
 #define EXITFAILURE -9
+#define EMPTYDIRECTORY -10

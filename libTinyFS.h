@@ -59,3 +59,7 @@ int tfs_readByte(fileDescriptor FD, char *buffer);
 /* change the file pointer location to offset (absolute). 
 Returns success/error codes.*/
 int tfs_seek(fileDescriptor FD, int offset);
+
+/* print the fragments!! */
+int tfs_displayFragments();
+void viewDRT();

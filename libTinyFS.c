@@ -10,10 +10,10 @@ dynamicResourceTable *DRT_head = NULL;
 static char *mounted_tinyfs = NULL;
 
 int tfs_mkfs(char *filename, int nBytes) {
-    int o_disk, i;
+    int o_disk, i, w_disk;
 
     // define block -  one block
-    char * blck = calloc(1, BLOCKSIZE);
+    char *data = calloc(1, BLOCKSIZE);
 
     // Bytes 0 and 1 must be formatter as specified
     // blck[0] = [block type = 1|2|3|4]
@@ -25,69 +25,81 @@ int tfs_mkfs(char *filename, int nBytes) {
     // blck[6] = [third byte of data]
     // blck[7] = [fourth byte of data ?] | ...
 
-    blck[0] = FREE; // free - ready for future writes
-    blck[1] = MAGICNUMBER; // magic number
+    data[0] = FREE; // free - ready for future writes
+    data[1] = MAGICNUMBER; // magic number
 
-    if((o_disk = openDisk(filename, nBytes) < 0)) {
+    o_disk = openDisk(filename, nBytes);
+    if (o_disk < 0) {
         return ERROPENDISK;
     }
     
     //setting magic numbers
     for (i = 0; i < nBytes/BLOCKSIZE; i++) {
-        writeBlock(o_disk, i, blck);
+        w_disk = writeBlock(o_disk, i, data);
+        if (w_disk < 0) {
+            return ERRWRITEBLCK;
+        }
     }
-    // printf("1\n");
 
-    blck[0] = SUPERBLOCK;
-    blck[1] = MAGICNUMBER;
-    blck[2] = SUPERBLOCK;
-    if (writeBlock(o_disk, 0, blck) < 0) {
+    data[0] = SUPERBLOCK;
+    data[1] = MAGICNUMBER;
+    data[2] = SUPERBLOCK;
+
+    w_disk = writeBlock(o_disk, 0, data);
+    if (w_disk < 0) {
         return ERRWRITEBLCK;
     }
-    // printf("2\n");
 
-    blck[0] = INODE;
-    blck[1] = MAGICNUMBER;
-    blck[2] = INODE;
-    if (writeBlock(o_disk, 0, blck) < 0) {
-        return ERRWRITEBLCK;
-    }
-    printf("(tfs_mkfs) Checking data...\n");
+    // blck[0] = INODE;
+    // blck[1] = MAGICNUMBER;
+    // blck[2] = INODE;
+    // if (writeBlock(o_disk, 0, blck) < 0) {
+    //     return ERRWRITEBLCK;
+    // }
+    printf("3. (tfs_mkfs) Checking data...\n");
     for (i = 0; i < 5; i++) {
-        printf("data[%d]: %d\n", i, blck[i]);
+        printf("data[%d]: %d\n", i, data[i]);
     }
     return SUCCESS;
 }
 
 int tfs_mount(char *diskname) {
     char data[BLOCKSIZE];
-    int o_disk;
+    int o_disk, r_disk;
     
     //unmount whatever is mounted on the file system
-    printf("Unmounting...\n");
     tfs_unmount();
     printf("Unmounted. Waiting for new mounting...\n");
 	
     printf("Opening disk...\n");
-	if((o_disk = openDisk(diskname, 0) < 0)) {
+    o_disk = openDisk(diskname, 0);
+	if(o_disk < 0) {
         return ERROPENDISK;
     }
     
-    printf("\nReading block...\no_disk = %d\ndata = %s\n\n",o_disk, data);
-	readBlock(o_disk, 0, data);
+    printf("\nReading block...\n");
+	r_disk = readBlock(o_disk, 0, data);
+    if (r_disk < 0) {
+        return ERRREADBLCK;
+    }
+
+    if (data[1] != MAGICNUMBER) {
+        printf("Error: Magic Number not here!\n");
+        //give an error
+    }
 
     printf("(tfs_mount) Checking data...\n");
     for (int i = 0; i < 5; i++) {
         printf("data[%d]: %d\n", i, data[i]);
     }
 
-    printf("I have to strcpy here! DUH!\n");
 	mounted_tinyfs = diskname;
     printf("File system mounted: %s\n", mounted_tinyfs);
 	return SUCCESS;
 }
 
 int tfs_unmount(void) {
+    printf("Unmounting...\n");
     if (mounted_tinyfs == NULL) {
         return NOMOUNTEDFILE;
     }
@@ -97,7 +109,7 @@ int tfs_unmount(void) {
 
 fileDescriptor tfs_openFile(char *name) {
     dynamicResourceTable *curr = DRT_head, *newNode;
-    fileDescriptor fd;
+    fileDescriptor o_disk, r_disk, w_disk;
     int i, exists = 0;
     char *data = malloc(BLOCKSIZE);
 
@@ -110,8 +122,10 @@ fileDescriptor tfs_openFile(char *name) {
             }
             curr = curr->next;
         }
-        if ((fd = openDisk(mounted_tinyfs, 0)) < 0) {
-            return ERRREADBLCK;
+        o_disk = openDisk(mounted_tinyfs, 0);
+        if (o_disk < 0) {
+            fprintf(stderr, "1. Error opening disk\n");
+            return ERROPENDISK;
         }
         // return fd;
     } else {
@@ -120,8 +134,12 @@ fileDescriptor tfs_openFile(char *name) {
     int b = DEFAULT_DISK_SIZE/BLOCKSIZE;
     for (i = 0; i < b; i++) {
         if (!exists) {
-            if (readBlock(fd, i, data) < 0){
-                return ERRFSCORRUPT;
+            // printf("Mounted Disk: %s\n", mounted_tinyfs);
+            // printf("o_disk: %d\n", o_disk);
+            r_disk = readBlock(o_disk, i, data);
+            if (r_disk < 0){
+                fprintf(stderr, "1. Error reading disk\n");
+                return ERRREADBLCK;
             }
             if (data[0] == INODE) {
                 if(strcmp(name, data+4) == 0) {
@@ -135,8 +153,10 @@ fileDescriptor tfs_openFile(char *name) {
     //if the file still doesn't exist
     if (!exists) {
         for (i = 0; i < b; i++) {
-            if (readBlock(fd, i, data) < 0){
-                return ERRFSCORRUPT;
+            r_disk = readBlock(o_disk, i, data);
+            if (r_disk < 0){
+                fprintf(stderr, "2. Error reading disk\n");
+                return ERRREADBLCK;
             }
             if(data[0] == FREE){
                 break;
@@ -145,27 +165,31 @@ fileDescriptor tfs_openFile(char *name) {
         data[0] = INODE;
         data[3] = SUPERBLOCK;
         strncpy(data+4, name, strlen(name));
-        if (writeBlock(fd, i, data) < 0) {
+        w_disk = writeBlock(o_disk, i, data);
+        if (w_disk < 0) {
+            fprintf(stderr, "1. Error writing to disk\n");
             return ERRWRITEBLCK;
         }
 
         //now add file to dynamic table
         if (DRT_head == NULL) {
             curr = calloc(1, sizeof(dynamicResourceTable));
+            printf("%lu\n", strlen(name));
+            curr->filename = (char*)malloc(sizeof(char) * strlen(name) + 1);
             strcpy(curr->filename, name);
-            curr->id = fd;
+            curr->id = o_disk;
             curr->next = NULL;
             DRT_head = curr;
         } else {
             newNode = calloc(1, sizeof(dynamicResourceTable));
-            //usze strdup?
+            newNode->filename = (char*)malloc(sizeof(char) * strlen(name) + 1);
             strcpy(newNode->filename, name);
             curr = DRT_head;
 
             while (curr->next != NULL) {
                 curr = curr->next;
             }
-            newNode->id = curr->id + 1;
+            newNode->id = curr->id;
             curr->next = newNode;
         }
     }
@@ -212,18 +236,19 @@ int tfs_closeFile(fileDescriptor FD) {
 
 int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
     //first check if disk is mounted
-    fileDescriptor fd;
-    int b_num, b, exists = 0, i, inode, start, end;
+    fileDescriptor o_disk, r_disk, w_disk;
+    int b_num = size/BLOCKSIZE - 1, b, exists = 0, i, inode, start, end;
     dynamicResourceTable *curr = DRT_head;
-    char *filename = NULL, *data = malloc(BLOCKSIZE);
+    char *filename = NULL, data[BLOCKSIZE];
     
     if (!mounted_tinyfs) {
         return NOMOUNTEDFILE;
     } 
-    if ((fd = openDisk(mounted_tinyfs, 0)) < 0) {
+
+    o_disk = openDisk(mounted_tinyfs, 0); 
+    if (o_disk < 0) {
         return ERRREADBLCK;
     }
-    b_num = size/BLOCKSIZE;
 
     while (curr != NULL) {
         if (curr->id == FD) {
@@ -234,12 +259,15 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
     if (curr == NULL) {
         return ERRFSCORRUPT;
     }
+
+    filename = (char*)malloc(sizeof(char) * strlen(curr->filename) + 1);
     strcpy(filename, curr->filename);
 
     b = DEFAULT_DISK_SIZE/BLOCKSIZE;
     for (i = 0; i < b; i++) {
         if (!exists) {
-            if (readBlock(fd, i, data) < 0){
+            r_disk = readBlock(o_disk, i, data);
+            if (r_disk < 0){
                 return EXITFAILURE;
             }
             if (data[0] == INODE) {
@@ -255,12 +283,15 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
         return ERRFSCORRUPT;
     }
     for (start = 0; start < b; start++) {
-        if (readBlock(fd, i, data) < 0){
+        r_disk = readBlock(o_disk, start, data);
+        if (r_disk < 0){
             return ERRREADBLCK;
         }
         if(data[0] == FREE) {
-            for (end = start; end + b_num-1; end++) {
-                if (readBlock(fd, end, data) < 0) {
+            printf("---IN---\n");
+            for (end = start; end < start + b_num; end++) {
+                r_disk = readBlock(o_disk, end, data);
+                if (r_disk < 0){
                     return ERRREADBLCK;
                 }
                 if (data[0] != FREE) {
@@ -272,6 +303,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
             }
         }
     }
+    printf("start: %d\nend: %d\n", start, end);
     if (!exists){
         return ERRFSCORRUPT;
     }
@@ -280,24 +312,32 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
     data[1] = MAGICNUMBER;
     data[3] = inode;
 
+    printf("-----\nBefore loop\n");
+	printf("start: %d\nend: %d\n", start, end);
+
     for (i = start; i <= end; i++) {
         if (i != end) {
             data[2] = start + 1;
+            printf("1. data[2]: %d\n", data[2]);
         } else {
             data[2] = 0;
+            printf("2. data[2]: %d\n", data[2]);
         }
         strncpy(data+4, buffer, BLOCKSIZE-4);
-        if (writeBlock(fd, i, data) < 0){
+        w_disk = writeBlock(o_disk, i, data);
+        if (w_disk < 0){
             return ERRWRITEBLCK;
         }
     }
 
-    if (readBlock(fd, inode, data) < 0) {
+    r_disk = readBlock(o_disk, inode, data);
+    if (r_disk < 0) {
         return ERRREADBLCK;
     }
     
     data[2] = start;
-    if (writeBlock(fd, inode, data) < 0){
+    w_disk = writeBlock(o_disk, inode, data);
+    if (w_disk < 0){
         return ERRWRITEBLCK;
     }
     curr->filePointer = 0;
@@ -311,16 +351,23 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
 }
 
 int tfs_deleteFile(fileDescriptor FD){
-    fileDescriptor fd;
-    int b, i, exists = 0, saveBlock;
+    fileDescriptor o_disk, r_disk, w_disk;
+    int b, i, exists = 0;
     dynamicResourceTable *curr = DRT_head;
     char *filename = NULL, *data = malloc(BLOCKSIZE);
 
     if (!mounted_tinyfs) {
-        return EXITFAILURE;
+        return NOMOUNTEDFILE;
     } 
-    if((fd = openDisk(mounted_tinyfs, 0)) < 0) {
+
+    o_disk = openDisk(mounted_tinyfs, 0);
+    if(o_disk < 0) {
         return ERROPENDISK;
+    }
+
+    if (curr == NULL) {
+        fprintf(stderr, "No file to be deleted!\n");
+        return EMPTYDIRECTORY;
     }
 
     while (curr != NULL) {
@@ -329,24 +376,24 @@ int tfs_deleteFile(fileDescriptor FD){
         }
         curr = curr->next;
     }
+    
     if (curr == NULL) {
         return ERRFSCORRUPT;
     }
+    
+    filename = (char*)malloc(sizeof(char) * strlen(curr->filename) + 1);
     strcpy(filename, curr->filename);
 
     b = DEFAULT_DISK_SIZE/BLOCKSIZE;
     for (i = 0; i < b; i++) {
         if (!exists) {
-            if (readBlock(fd, i, data) < 0){
+            r_disk = readBlock(o_disk, i, data);
+            if (r_disk < 0){
                 return ERRREADBLCK;
             }
             if (data[0] == INODE) {
                 if(strcmp(filename, data+4) == 0) {
-                    if (data[3] == 0){
-                        return ERRNOTEMPTY;
-                    }
                     exists = 1;
-                    saveBlock = data[2];
                     break;
                 }
             }
@@ -358,48 +405,65 @@ int tfs_deleteFile(fileDescriptor FD){
     //mark its blocks as free on disk
     data[0] = FREE;
 
-    if (writeBlock(fd, i, data) < 0){
+    w_disk = writeBlock(o_disk, i, data);
+    if (w_disk < 0){
         return ERRWRITEBLCK;
     }
-    // for (i = saveBlock; i < save)
+
     tfs_closeFile(FD);
+    printf("(tfs_deleteFile) Checking data...\n");
+    for (i = 0; i < 5; i++) {
+        printf("data[%d]: %d\n", i, data[i]);
+    }
     return SUCCESS;
 }
 
 int tfs_readByte(fileDescriptor FD, char *buffer) {
-    fileDescriptor fd;
-    int b, i, exists = 0, current_block, saveBlock, file_pointer;
+    fileDescriptor o_disk, r_disk, w_disk;
+    int b = DEFAULT_DISK_SIZE/BLOCKSIZE, i, exists = 0, current_block, saveBlock, file_pointer;
     dynamicResourceTable *curr = DRT_head;
-    char *filename = NULL, *data = malloc(BLOCKSIZE);
+    char *filename = NULL, data[BLOCKSIZE];
 
-    if (!mounted_tinyfs) {
+    if (mounted_tinyfs == NULL) {
         return NOMOUNTEDFILE;
     } 
-    if( (fd = openDisk(mounted_tinyfs, 0)) < 0) {
+
+    o_disk = openDisk(mounted_tinyfs, 0);
+    if(o_disk < 0) {
         return ERRREADBLCK;
     }
 
+    if (curr == NULL) {
+        return EMPTYDIRECTORY;
+    }
+
+    printf("The FD to read is: %d\n", FD);
     while (curr != NULL) {
+        printf("filename: %s\nid: %d\n----\n", curr->filename, curr->id);
         if (curr->id == FD) {
             break;
         }
         curr = curr->next;
     }
     if (curr == NULL) {
+        fprintf(stderr, "File not found!\n");
         return EXITFAILURE;
     }
+
+    filename = (char*)malloc(sizeof(char) * strlen(curr->filename) + 1);
     strcpy(filename, curr->filename);
 
-    b = DEFAULT_DISK_SIZE/BLOCKSIZE;
     for (i = 0; i < b; i++) {
         if (!exists) {
-            if (readBlock(fd, i, data) < 0){
+            r_disk = readBlock(o_disk, i, data);
+            if (r_disk < 0){
                 return ERRREADBLCK;
             }
             if (data[0] == INODE) {
                 if(strcmp(filename, data+4) == 0) {
                     exists = 1;
-                    if (writeBlock(fd, i, data) < 0){
+                    w_disk = writeBlock(o_disk, i, data);
+                    if (w_disk < 0) {
                         return ERRWRITEBLCK;
                     }
                     saveBlock = data[2];
@@ -414,20 +478,30 @@ int tfs_readByte(fileDescriptor FD, char *buffer) {
     current_block = curr->filePointer + 1/ BLOCKSIZE;
     file_pointer = curr->filePointer - (BLOCKSIZE * current_block);
 
-    if (readBlock(fd, current_block + saveBlock, data) < 0) {
+    r_disk = readBlock(o_disk, current_block + saveBlock, data);
+    if (r_disk < 0) {
         return ERRREADBLCK;
     }
     
     if (data[0] != FILEEXTENT){
-        return ERRFSCORRUPT;
+        printf("(tfs_readByte) Checking data...\n");
+        for (i = 0; i < 5; i++) {
+            printf("data[%d]: %d\n", i, data[i]);
+        }
+        return data[0];
     }
     *buffer = data[file_pointer+4];
     curr->filePointer++;
+    
+    printf("(tfs_readByte) Checking data...\n");
+    for (i = 0; i < 5; i++) {
+        printf("data[%d]: %d\n", i, data[i]);
+    }
     return SUCCESS;
 }
 
 int tfs_seek(fileDescriptor FD, int offset) {
-    fileDescriptor fd;
+    fileDescriptor o_disk, r_disk, w_disk;
     int b, i, exists = 0;
     dynamicResourceTable *curr = DRT_head;
     char *filename = NULL, *data = malloc(BLOCKSIZE);
@@ -435,7 +509,9 @@ int tfs_seek(fileDescriptor FD, int offset) {
     if (!mounted_tinyfs) {
         return EXITFAILURE;
     } 
-    if((fd = openDisk(mounted_tinyfs, 0)) < 0){
+
+    o_disk = openDisk(mounted_tinyfs, 0);
+    if(o_disk < 0){
         return ERRREADBLCK;
     }
 
@@ -449,18 +525,21 @@ int tfs_seek(fileDescriptor FD, int offset) {
         return ERRFSCORRUPT;
     }
     curr->filePointer = offset;
+    filename = (char*)malloc(sizeof(char) * strlen(curr->filename) + 1);
     strcpy(filename, curr->filename);
 
     b = DEFAULT_DISK_SIZE/BLOCKSIZE;
     for (i = 0; i < b; i++) {
         if (!exists) {
-            if (readBlock(fd, i, data) < 0){
+            r_disk = readBlock(o_disk, i, data);
+            if (r_disk < 0){
                 return ERRREADBLCK;
             }
             if (data[0] == INODE) {
                 if(strcmp(filename, data+4) == 0) {
                     exists = 1;
-                    if (writeBlock(fd, i, data) < 0){
+                    w_disk = writeBlock(o_disk, i, data);
+                    if (w_disk < 0){
                         return ERRWRITEBLCK;
                     }
                     break;
@@ -469,4 +548,60 @@ int tfs_seek(fileDescriptor FD, int offset) {
         }
     }
     return SUCCESS;
+}
+
+void viewDRT() {
+    dynamicResourceTable *curr = DRT_head;
+    printf("\n");
+    while (curr != NULL) {
+        printf("filename: %s\nid: %d\n", curr->filename, curr->id);
+        curr = curr->next;
+    }
+    printf("\n");
+}
+/** TODO: REMOVE THIS! */
+
+int tfs_displayFragments() {
+    printf("Displaying fragments...\n");
+
+	int i, o_disk, count = 0, r_disk;
+	char buff[BLOCKSIZE];
+
+	if(mounted_tinyfs) 
+		o_disk = openDisk(mounted_tinyfs, 0);
+	
+    else
+		return ERRNOTEMPTY;
+	for(i = 0; i < DEFAULT_DISK_SIZE / BLOCKSIZE; i++){
+
+        r_disk = readBlock(o_disk, i, buff);
+		if(r_disk < 0) {
+			return ERRNOTEMPTY;
+        }
+
+		if(buff[0] == 1){
+			printf("|S|");
+			count++;
+		}
+		else if(buff[0] == 2){
+			printf("|I|");
+			count++;
+		}
+		else if(buff[0] == 3){
+			printf("|D|");
+			count++;
+		}
+		else if(buff[0] == 4){
+			printf("| |");
+			count++;
+		}
+		if(count == 4 || i == DEFAULT_DISK_SIZE / BLOCKSIZE - 1) {
+			printf("\n");
+			count = 0;
+		}
+		else
+			printf(" -> ");
+	}
+	printf("\n");
+	return 1;
 }
