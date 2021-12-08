@@ -1,2 +1,2 @@
 all:
-	gcc -Wall *.c
+	gcc -Wall -o tinyFsDemo *.c

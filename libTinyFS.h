@@ -60,6 +60,5 @@ int tfs_readByte(fileDescriptor FD, char *buffer);
 Returns success/error codes.*/
 int tfs_seek(fileDescriptor FD, int offset);
 
-/* print the fragments!! */
-int tfs_displayFragments();
+/* view the Dynamic Resource Table!! */
 void viewDRT();

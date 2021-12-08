@@ -24,12 +24,12 @@ int openDisk(char *filename, int nBytes) {
     }
 
     if (nBytes == 0) {
-        o_disk = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        o_disk = open(filename, O_RDWR, S_IRUSR | S_IWUSR);
         if (o_disk < 0){
             return EXITFAILURE;
         }
     } else {
-        o_disk = open(filename, O_RDWR, S_IRUSR | S_IWUSR);
+        o_disk = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
         if (o_disk < 0) {
             return EXITFAILURE;
         }
@@ -63,7 +63,8 @@ int readBlock(int disk, int bNum, void *block) {
     // lseek write it on another local buffer
     ls = lseek(disk, 0, SEEK_SET);
     if (ls == -1) {
-        printf("Oops, something wrong happened!\n");
+        fprintf(stderr,"Oops, lseek error!\n");
+        return EXITFAILURE;
     }
     // check if it worked correctly
     r_disk = pread(disk, block, BLOCKSIZE, b_size);
@@ -74,30 +75,20 @@ int readBlock(int disk, int bNum, void *block) {
 }
 
 int writeBlock(int disk, int bNum, void *block) {
-	int bytesWritten;
-
-	lseek(disk, 0, SEEK_SET);
-
-	if((bytesWritten = pwrite(disk, block, BLOCKSIZE, bNum * BLOCKSIZE)) == -1) {
-		fprintf(stderr, "Error:%s %d\n", " writeBlock", disk);
-		return ERRWRITEBLCK;
-	} else
-		return 0;
-    //-----------
-
     // lseek write it on another local buffer
-    // int b_size = bNum * BLOCKSIZE;
-    // fileDescriptor ret, w_disk;
-    // ret = lseek(disk, 0, SEEK_SET);
+    int b_size = bNum * BLOCKSIZE;
+    fileDescriptor ls, w_disk;
+    ls = lseek(disk, 0, SEEK_SET);
 
-    // // check if it worked correctly
-    // if (ret != b_size) {
-    //     return EXITFAILURE;
-    // }
-    // // check
-    // w_disk = write(disk, block, b_size);
-    // if (w_disk < 0) {
-    //     return EXITFAILURE;
-    // }
-    // return EXIT_SUCCESS;
+    // check if it worked correctly
+    if (ls == -1) {
+        fprintf(stderr,"Oops, lseek error!\n");
+        return EXITFAILURE;
+    }
+    // check
+    w_disk = pwrite(disk, block, BLOCKSIZE, b_size);
+    if (w_disk  == -1) {
+        return EXITFAILURE;
+    }
+    return EXIT_SUCCESS;
 }

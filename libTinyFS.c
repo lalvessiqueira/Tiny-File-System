@@ -29,12 +29,12 @@ int tfs_mkfs(char *filename, int nBytes) {
     data[1] = MAGICNUMBER; // magic number
 
     o_disk = openDisk(filename, nBytes);
-    if (o_disk < 0) {
+    if (o_disk == -1) {
         return ERROPENDISK;
     }
     
     //setting magic numbers
-    for (i = 0; i < nBytes/BLOCKSIZE; i++) {
+    for (i = 0; i < BLOCKSIZE; i++) {
         w_disk = writeBlock(o_disk, i, data);
         if (w_disk < 0) {
             return ERRWRITEBLCK;
@@ -122,7 +122,9 @@ fileDescriptor tfs_openFile(char *name) {
             }
             curr = curr->next;
         }
+        printf("Mounted Disk: %s\n", mounted_tinyfs);
         o_disk = openDisk(mounted_tinyfs, 0);
+        printf("o_disk: %d\n", o_disk);
         if (o_disk < 0) {
             fprintf(stderr, "1. Error opening disk\n");
             return ERROPENDISK;
@@ -247,7 +249,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
 
     o_disk = openDisk(mounted_tinyfs, 0); 
     if (o_disk < 0) {
-        return ERRREADBLCK;
+        return ERROPENDISK;
     }
 
     while (curr != NULL) {
@@ -259,6 +261,8 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
     if (curr == NULL) {
         return ERRFSCORRUPT;
     }
+
+    printf("-----> Checking if curr is correct: %s : %d\n", curr->filename, curr->id);
 
     filename = (char*)malloc(sizeof(char) * strlen(curr->filename) + 1);
     strcpy(filename, curr->filename);
@@ -288,7 +292,6 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
             return ERRREADBLCK;
         }
         if(data[0] == FREE) {
-            printf("---IN---\n");
             for (end = start; end < start + b_num; end++) {
                 r_disk = readBlock(o_disk, end, data);
                 if (r_disk < 0){
@@ -334,7 +337,6 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size) {
     if (r_disk < 0) {
         return ERRREADBLCK;
     }
-    
     data[2] = start;
     w_disk = writeBlock(o_disk, inode, data);
     if (w_disk < 0){
@@ -446,7 +448,7 @@ int tfs_readByte(fileDescriptor FD, char *buffer) {
         curr = curr->next;
     }
     if (curr == NULL) {
-        fprintf(stderr, "File not found!\n");
+        fprintf(stderr, "File pointer is already past the end of the file!\n");
         return EXITFAILURE;
     }
 
@@ -475,16 +477,16 @@ int tfs_readByte(fileDescriptor FD, char *buffer) {
     if (!exists){
         return EXITFAILURE;
     }
-    current_block = curr->filePointer + 1/ BLOCKSIZE;
+    current_block = curr->filePointer/BLOCKSIZE;
     file_pointer = curr->filePointer - (BLOCKSIZE * current_block);
 
-    r_disk = readBlock(o_disk, current_block + saveBlock, data);
+    r_disk = readBlock(o_disk, current_block, data);
     if (r_disk < 0) {
         return ERRREADBLCK;
     }
     
-    if (data[0] != FILEEXTENT){
-        printf("(tfs_readByte) Checking data...\n");
+    if (data[0] != FILEEXTENT) {
+        printf("1. (tfs_readByte) Checking data...\n");
         for (i = 0; i < 5; i++) {
             printf("data[%d]: %d\n", i, data[i]);
         }
@@ -493,7 +495,7 @@ int tfs_readByte(fileDescriptor FD, char *buffer) {
     *buffer = data[file_pointer+4];
     curr->filePointer++;
     
-    printf("(tfs_readByte) Checking data...\n");
+    printf("2. (tfs_readByte) Checking data...\n");
     for (i = 0; i < 5; i++) {
         printf("data[%d]: %d\n", i, data[i]);
     }
@@ -558,50 +560,4 @@ void viewDRT() {
         curr = curr->next;
     }
     printf("\n");
-}
-/** TODO: REMOVE THIS! */
-
-int tfs_displayFragments() {
-    printf("Displaying fragments...\n");
-
-	int i, o_disk, count = 0, r_disk;
-	char buff[BLOCKSIZE];
-
-	if(mounted_tinyfs) 
-		o_disk = openDisk(mounted_tinyfs, 0);
-	
-    else
-		return ERRNOTEMPTY;
-	for(i = 0; i < DEFAULT_DISK_SIZE / BLOCKSIZE; i++){
-
-        r_disk = readBlock(o_disk, i, buff);
-		if(r_disk < 0) {
-			return ERRNOTEMPTY;
-        }
-
-		if(buff[0] == 1){
-			printf("|S|");
-			count++;
-		}
-		else if(buff[0] == 2){
-			printf("|I|");
-			count++;
-		}
-		else if(buff[0] == 3){
-			printf("|D|");
-			count++;
-		}
-		else if(buff[0] == 4){
-			printf("| |");
-			count++;
-		}
-		if(count == 4 || i == DEFAULT_DISK_SIZE / BLOCKSIZE - 1) {
-			printf("\n");
-			count = 0;
-		}
-		else
-			printf(" -> ");
-	}
-	printf("\n");
-	return 1;
 }
