@@ -50,12 +50,12 @@ int tfs_mkfs(char *filename, int nBytes) {
         return ERRWRITEBLCK;
     }
 
-    // blck[0] = INODE;
-    // blck[1] = MAGICNUMBER;
-    // blck[2] = INODE;
-    // if (writeBlock(o_disk, 0, blck) < 0) {
-    //     return ERRWRITEBLCK;
-    // }
+    data[0] = INODE;
+    data[1] = MAGICNUMBER;
+    data[2] = INODE;
+    if (writeBlock(o_disk, 0, data) < 0) {
+        return ERRWRITEBLCK;
+    }
     printf("3. (tfs_mkfs) Checking data...\n");
     for (i = 0; i < 5; i++) {
         printf("data[%d]: %d\n", i, data[i]);
