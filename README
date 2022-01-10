@@ -1,14 +1,1 @@
-○	Names of all partners:
-Leticia Siqueira
-
-○	An explanation of how well your TinyFS implementation works, including tradeoffs you made and why:
-Mounting and Unmouting are both functions that are working perfectly. The tiny file system functions like, making a blank tiny file system, opening and closing currently mounted file system are all working fine.
-The part that has a bug in the TinyFS is for reading the bytes. Which I believe to be that it is getting the wrong file descriptor.
-
-○	An explanation of which additional functionality areas you have chosen and how you have shown that it works:
-The additional functionality that was added was the reading through the Dynamic Resource table to get an idea of what was being saved and what was being deleted.
-
-○	Any limitations or bugs your file system has:
-The only bug that I seemed to find was that SOMETIMES the readByte() won't save the correct byte.
-I was having issue using read() for the readDisk, but did some research and found out that pread() works just like read() but reads from the specified position in the file without modifying the file pointer.
 
